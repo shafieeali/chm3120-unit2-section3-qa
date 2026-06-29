@@ -30,5 +30,95 @@ function runTool(){ const k=APP.kind; const out=$('#toolOutput'); const tbl=$('#
  else if(k==='fluorescence'){const ex=+$('#ex').value, em=+$('#em').value, q=+$('#quencher').value; const shift=em-ex; const relI=1/(1+q*10); out.className=shift>0?'result-box success':'result-box warning'; out.innerHTML=`<p>Stokes shift = <strong>${fmt(shift,1)} nm</strong>. Relative intensity with quencher = ${fmt(relI,3)}.</p><p>${shift>0?'Emission is at longer wavelength than excitation, as expected for fluorescence.':'Check wavelengths: emission is usually longer than excitation.'}</p>`; tbl.innerHTML=table(['Property','Value'],[['Excitation',`${ex} nm`],['Emission',`${em} nm`],['Stokes shift',`${fmt(shift,1)} nm`],['Relative intensity',fmt(relI,3)]]); if(ctx){drawAxes(ctx,canvas.width,canvas.height);[[ex,'#315f9a'],[em,'#b74352']].forEach(([wl,col])=>{ctx.strokeStyle=col;ctx.beginPath();for(let x=0;x<520;x++){const v=250+x;const y=140*Math.exp(-1*((v-wl)/35)**2);const px=60+x*(canvas.width-110)/520, py=canvas.height-45-y;if(x===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);}ctx.stroke();});}}
  else {const e0=+$('#e0').value,n=+$('#ne').value,ox=+$('#ox').value,red=+$('#red').value,T=273.15+(+$('#tempC').value); const R=8.314462618,F=96485.33212; const Q=red/ox; const E=e0-(R*T/(n*F))*Math.log(Q); out.className='result-box success'; out.innerHTML=`<p>E = <strong>${fmt(E,4)} V</strong> using Q = reduced/oxidized = ${fmt(Q,4)}.</p><p>Changing activity changes the measured potential through the Nernst logarithm.</p>`; tbl.innerHTML=table(['Quantity','Value'],[['E0',`${e0} V`],['n',n],['Q',fmt(Q,4)],['Temperature',`${fmt(T,2)} K`],['E',`${fmt(E,4)} V`]]); if(ctx){drawAxes(ctx,canvas.width,canvas.height);ctx.strokeStyle='#087f8c';ctx.beginPath();for(let i=0;i<100;i++){const q=Math.pow(10,-3+i*6/99);const y=e0-(8.314*T/(n*96485))*Math.log(q);const px=55+i*(canvas.width-100)/99, py=canvas.height-50-(y-(e0-.18))/.36*(canvas.height-90);if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);}ctx.stroke();}}
 }
-function init(){setupTabs();renderChunks();renderLectureMap();setupSlideStudio();renderPractice(); const btn=$('#runMainTool'); if(btn)btn.addEventListener('click',runTool); runTool(); openTab('chunk1');}
+
+function chunkNumber(ch){ return Number(String(ch.id).replace(/\D/g,'')) || 1; }
+function activityTitle(kind, i, label){
+  const map={
+    intro:['Course Map Quest','Policy Decision Game','Support Network Builder','Exam Week Planner'],
+    units:['Measurement Unit Arcade','Prefix Ladder Challenge','Concentration Mixer','Significant Figure Referee','Dimensional Analysis Escape'],
+    precision:['Target Practice: Precision vs Accuracy','Error Detective','Uncertainty Propagation Workshop','Replicate Measurement Simulator','Reporting Decision Coach'],
+    qa:['QA Decision Board','Calibration Curve Studio','Regression Residual Lab','Control Chart Game','Method Validation Coach'],
+    specintro:['EM Spectrum Navigator','Wave Property Simulator','Photon Energy Converter','Transition Match Game','Spectral Region Challenge'],
+    atomic:['Atomic Line Explorer','Line Broadening Simulator','Atomization Path Builder','Temperature and Population Lab','Interference Troubleshooter'],
+    uvvis:['Color and Transition Explorer','Absorbance/Transmittance Dial','Beer-Lambert Lab','Calibration and Deviation Studio','Monochromator/Wavelength Selector'],
+    fluorescence:['Luminescence Pathway Game','Jablonski Transition Explorer','Stokes Shift Simulator','Quenching Lab','Fluorescence Method Coach'],
+    electrochem:['Cell Component Builder','Reference Electrode Comparator','Nernst Concentration Game','Activity vs Concentration Lab','Potential Sign Coach'],
+    potentiometry:['Electrode Response Builder','Reference Electrode Comparator','Nernst Slope Lab','ISE Calibration Game','pH Electrode Coach']
+  };
+  const arr=map[kind]||['Interactive Lecture Tool'];
+  return arr[(i-1)%arr.length] || label;
+}
+function renderChunkActivities(){
+  APP.chunks.forEach(ch=>{
+    const panel = document.getElementById(ch.id);
+    if(!panel || panel.querySelector('.chunk-activity')) return;
+    const i=chunkNumber(ch);
+    const title=activityTitle(APP.kind,i,ch.label);
+    const html=`<section class="tool chunk-activity" aria-labelledby="activity-title-${ch.id}">
+      <div class="panel-heading compact"><div><p class="eyebrow">Tab activity</p><h3 id="activity-title-${ch.id}">${esc(title)}</h3></div><button class="primary chunk-run" type="button" data-chunk="${ch.id}">Run activity</button></div>
+      <div class="activity-grid">${activityControls(APP.kind,ch)}</div>
+      <div class="activity-output result-box" id="activity-output-${ch.id}" aria-live="polite"></div>
+      <canvas class="activity-canvas" id="activity-canvas-${ch.id}" width="760" height="280" role="img" aria-label="Visual model for ${esc(title)}" aria-describedby="activity-output-${ch.id} activity-table-${ch.id}"></canvas>
+      <div class="table-wrap" id="activity-table-${ch.id}"></div>
+    </section>`;
+    const strip=panel.querySelector('.slide-strip');
+    if(strip) strip.insertAdjacentHTML('beforebegin', html); else panel.insertAdjacentHTML('beforeend', html);
+  });
+  $$('.chunk-run').forEach(btn=>btn.addEventListener('click',()=>runChunkActivity(btn.dataset.chunk)));
+  APP.chunks.forEach(ch=>runChunkActivity(ch.id));
+}
+function activityControls(kind,ch){
+  const id=ch.id, i=chunkNumber(ch);
+  if(kind==='intro') return `<label>Hours available this week<input id="${id}-a" type="number" value="6" min="0" step="0.5"></label><label>Confidence before activity<select id="${id}-b"><option value="low">low</option><option value="medium" selected>medium</option><option value="high">high</option></select></label><label>Priority<select id="${id}-c"><option value="slides">review slides</option><option value="practice" selected>practice problems</option><option value="help">ask for help</option></select></label>`;
+  if(kind==='units') return `<label>Starting value<input id="${id}-a" type="number" value="${i*125}" step="0.01"></label><label>Prefix jump<select id="${id}-b"><option value="-6">micro to base</option><option value="-3" selected>milli to base</option><option value="3">base to kilo</option><option value="6">base to mega</option></select></label><label>Sig figs to report<input id="${id}-c" type="number" value="3" min="1" max="6"></label>`;
+  if(kind==='precision') return `<label>True value<input id="${id}-a" type="number" value="10.00" step="0.01"></label><label>Bias<input id="${id}-b" type="number" value="${(i-3)*0.08}" step="0.01"></label><label>Scatter<input id="${id}-c" type="number" value="${(0.05+i*0.03).toFixed(2)}" step="0.01"></label>`;
+  if(kind==='qa') return `<label>Blank SD<input id="${id}-a" type="number" value="0.004" step="0.001"></label><label>Calibration slope<input id="${id}-b" type="number" value="0.125" step="0.001"></label><label>Unknown signal<input id="${id}-c" type="number" value="0.420" step="0.001"></label>`;
+  if(kind==='specintro') return `<label>Wavelength (nm)<input id="${id}-a" type="number" value="${250+i*90}" step="1"></label><label>Medium/selectivity<select id="${id}-b"><option value="vacuum">vacuum</option><option value="air" selected>air</option><option value="water">water</option></select></label><label>Transition gap factor<input id="${id}-c" type="range" min="1" max="10" value="${Math.min(10,2+i)}"></label>`;
+  if(kind==='atomic') return `<label>Temperature (K)<input id="${id}-a" type="number" value="${1800+i*350}" step="50"></label><label>Element mass (amu)<input id="${id}-b" type="number" value="${20+i*8}" step="1"></label><label>Interference level<select id="${id}-c"><option value="0.1">low</option><option value="0.5" selected>medium</option><option value="0.9">high</option></select></label>`;
+  if(kind==='uvvis') return `<label>Concentration (M)<input id="${id}-a" type="number" value="${(0.00001*i).toFixed(6)}" step="0.000001"></label><label>Path length (cm)<input id="${id}-b" type="number" value="1.00" step="0.01"></label><label>Wavelength shift<select id="${id}-c"><option value="-35">blue shift</option><option value="0" selected>no shift</option><option value="35">red shift</option></select></label>`;
+  if(kind==='fluorescence') return `<label>Excitation (nm)<input id="${id}-a" type="number" value="${310+i*15}" step="1"></label><label>Emission (nm)<input id="${id}-b" type="number" value="${420+i*20}" step="1"></label><label>Quencher<input id="${id}-c" type="range" min="0" max="1" step="0.05" value="${Math.min(.8,i*.12).toFixed(2)}"></label>`;
+  return `<label>E0 (V)<input id="${id}-a" type="number" value="0.222" step="0.001"></label><label>Activity ratio Q<input id="${id}-b" type="number" value="${(0.1*i).toFixed(2)}" step="0.01"></label><label>Electrons n<input id="${id}-c" type="number" value="1" min="1" step="1"></label>`;
+}
+function runChunkActivity(id){
+  const ch=APP.chunks.find(x=>x.id===id); if(!ch) return;
+  const kind=APP.kind, i=chunkNumber(ch), out=$(`#activity-output-${id}`), tbl=$(`#activity-table-${id}`), canvas=$(`#activity-canvas-${id}`), ctx=canvas?.getContext('2d');
+  const a=Number($(`#${id}-a`)?.value), bRaw=$(`#${id}-b`)?.value, cRaw=$(`#${id}-c`)?.value, b=Number(bRaw), c=Number(cRaw);
+  if(!out||!tbl) return;
+  let rows=[], msg='', tone='success';
+  if(kind==='intro'){
+    const hours=a, boost={low:1.25,medium:1,high:.8}[bRaw]||1, blocks=Math.max(1,Math.round(hours*boost/1.5));
+    msg=`Build ${blocks} focused study blocks this week. Priority: ${bRaw==='low'?'start with a short confidence win, then ':''}${cRaw}.`;
+    rows=[['Study blocks',blocks],['Best first action',cRaw],['Office-hour trigger',hours<3?'Use help early':'Try practice first, then ask targeted questions']];
+    drawProgress(ctx,canvas,blocks,6,'Study blocks');
+  } else if(kind==='units'){
+    const converted=a*Math.pow(10,b), sf=Math.max(1,Math.min(6,Math.round(c))); msg=`${a} with a 10^${b} prefix jump becomes ${fmt(converted,sf)}. Report with ${sf} significant figures.`; rows=[['Original',a],['Prefix factor',`10^${b}`],['Converted',fmt(converted,sf)],['Sig figs',sf]]; drawScale(ctx,canvas,Math.log10(Math.abs(converted)||1),'prefix ladder');
+  } else if(kind==='precision'){
+    const vals=Array.from({length:7},(_,j)=>a+b+Math.sin((j+1)*1.9+i)*c); const m=mean(vals), s=sd(vals), bias=m-a; msg=`Mean ${fmt(m,4)}, s ${fmt(s,4)}, bias ${fmt(bias,4)}. ${Math.abs(bias)>s?'Accuracy is the main concern.':'Precision/scatter is the main concern.'}`; rows=vals.map((v,j)=>[`rep ${j+1}`,fmt(v,4)]); drawPoints(ctx,canvas,vals,a);
+  } else if(kind==='qa'){
+    const lod=3*a/b, loq=10*a/b, x=c/b; msg=`LOD = ${fmt(lod,4)}, LOQ = ${fmt(loq,4)}, unknown concentration = ${fmt(x,4)}. ${x>loq?'Quantitative result is defensible.':x>lod?'Detected but below LOQ.':'Below detection limit.'}`; rows=[['LOD',fmt(lod,4)],['LOQ',fmt(loq,4)],['Unknown concentration',fmt(x,4)]]; drawBars(ctx,canvas,[lod,loq,x],['LOD','LOQ','unknown']);
+  } else if(kind==='specintro'){
+    const lam=a*1e-9, nu=2.99792458e8/lam, E=6.62607015e-34*nu, region=a<400?'UV':a<700?'visible':a<2500?'IR':'longer wavelength'; msg=`${a} nm is ${region}. Frequency ${fmt(nu,3)} Hz, photon energy ${fmt(E,3)} J. Transition gap factor ${cRaw}.`; rows=[['Wavelength',`${a} nm`],['Region',region],['Frequency',`${fmt(nu,3)} Hz`],['Energy',`${fmt(E,3)} J`]]; drawSpectrum(ctx,canvas,a);
+  } else if(kind==='atomic'){
+    const broad=Math.sqrt(a/Math.max(1,b))*Number(cRaw); msg=`Line-broadening index ${fmt(broad,3)}. Higher temperature and higher interference make spectral selection harder.`; rows=[['Temperature',`${a} K`],['Mass',`${b} amu`],['Interference',cRaw],['Broadening index',fmt(broad,3)]]; drawBars(ctx,canvas,[a/3000,b/80,Number(cRaw)],['temp','mass','interference']);
+  } else if(kind==='uvvis'){
+    const eps=12000+i*1200, A=eps*a*b, T=Math.pow(10,-A)*100, peak=430+Number(cRaw); msg=`Absorbance ${fmt(A,4)}, transmittance ${fmt(T,2)}%. Peak at ${peak} nm. ${A>1.5?'Dilute: absorbance is high.':'Good working range for calibration.'}`; rows=[['epsilon',eps],['A',fmt(A,4)],['%T',fmt(T,2)],['Peak wavelength',`${peak} nm`]]; drawPeak(ctx,canvas,peak,A,'#087f8c');
+  } else if(kind==='fluorescence'){
+    const shift=b-a, rel=1/(1+10*c); msg=`Stokes shift ${fmt(shift,1)} nm; relative intensity ${fmt(rel,3)}. ${shift>0?'Emission is correctly at longer wavelength.':'Check: emission should usually be longer wavelength.'}`; rows=[['Excitation',`${a} nm`],['Emission',`${b} nm`],['Stokes shift',`${fmt(shift,1)} nm`],['Relative intensity',fmt(rel,3)]]; drawDualPeak(ctx,canvas,a,b,rel);
+  } else {
+    const E=a-(0.05916/Math.max(1,c))*Math.log10(Math.max(1e-9,b)); msg=`Nernst potential ${fmt(E,4)} V. A tenfold activity change shifts potential by about ${fmt(0.05916/Math.max(1,c),4)} V per electron at 25 C.`; rows=[['E0',`${a} V`],['Q',b],['n',c],['E',`${fmt(E,4)} V`]]; drawNernst(ctx,canvas,a,c);
+  }
+  out.className=`activity-output result-box ${tone}`; out.innerHTML=`<p>${esc(msg)}</p><p>This activity connects to slides ${esc(ch.range)}: ${esc(ch.label)}.</p>`;
+  tbl.innerHTML=table(['Activity quantity','Value'],rows);
+  setStatus(`${ch.label} activity`);
+}
+function drawProgress(ctx,canvas,value,max,label){ if(!ctx)return; drawAxes(ctx,canvas.width,canvas.height); ctx.fillStyle='#087f8c'; ctx.fillRect(70,130,Math.min(1,value/max)*(canvas.width-140),44); ctx.strokeStyle='#172026'; ctx.strokeRect(70,130,canvas.width-140,44); ctx.fillStyle='#172026'; ctx.fillText(label,70,110); }
+function drawScale(ctx,canvas,value,label){ if(!ctx)return; drawAxes(ctx,canvas.width,canvas.height); const x=60+(Math.max(-9,Math.min(9,value))+9)/18*(canvas.width-120); ctx.fillStyle='#c98d17'; ctx.fillRect(x-5,70,10,150); ctx.fillStyle='#172026'; ctx.fillText(label,70,50); }
+function drawPoints(ctx,canvas,vals,truev){ if(!ctx)return; drawAxes(ctx,canvas.width,canvas.height); const min=Math.min(...vals,truev), max=Math.max(...vals,truev), span=max-min||1; ctx.strokeStyle='#b74352'; const yTrue=canvas.height-55-(truev-min)/span*(canvas.height-95); ctx.beginPath(); ctx.moveTo(55,yTrue); ctx.lineTo(canvas.width-45,yTrue); ctx.stroke(); vals.forEach((v,j)=>{const x=70+j*(canvas.width-140)/(vals.length-1), y=canvas.height-55-(v-min)/span*(canvas.height-95); ctx.fillStyle='#087f8c'; ctx.beginPath(); ctx.arc(x,y,8,0,Math.PI*2); ctx.fill();}); }
+function drawBars(ctx,canvas,vals,labels){ if(!ctx)return; drawAxes(ctx,canvas.width,canvas.height); const max=Math.max(...vals,1e-9); vals.forEach((v,i)=>{const h=(v/max)*(canvas.height-100), x=85+i*150; ctx.fillStyle=['#087f8c','#c98d17','#b74352','#315f9a'][i%4]; ctx.fillRect(x,canvas.height-50-h,70,h); ctx.fillStyle='#172026'; ctx.fillText(labels[i],x,canvas.height-25);}); }
+function drawSpectrum(ctx,canvas,wl){ if(!ctx)return; drawAxes(ctx,canvas.width,canvas.height); const grad=ctx.createLinearGradient(60,0,canvas.width-60,0); grad.addColorStop(0,'#6b4bbd');grad.addColorStop(.35,'#2a7abf');grad.addColorStop(.55,'#2e9f5f');grad.addColorStop(.75,'#d1a21d');grad.addColorStop(1,'#b74352'); ctx.fillStyle=grad; ctx.fillRect(60,120,canvas.width-120,46); const x=60+(Math.max(200,Math.min(800,wl))-200)/600*(canvas.width-120); ctx.fillStyle='#172026'; ctx.fillRect(x-4,90,8,100); }
+function drawPeak(ctx,canvas,peak,A,color){ if(!ctx)return; drawAxes(ctx,canvas.width,canvas.height); ctx.strokeStyle=color; ctx.lineWidth=3; ctx.beginPath(); for(let i=0;i<520;i++){const wl=250+i; const y=Math.min(180,Math.max(20,A*100))*Math.exp(-1*((wl-peak)/55)**2); const x=60+i*(canvas.width-110)/520, py=canvas.height-45-y; if(i===0)ctx.moveTo(x,py); else ctx.lineTo(x,py);} ctx.stroke(); }
+function drawDualPeak(ctx,canvas,ex,em,rel){ if(!ctx)return; drawAxes(ctx,canvas.width,canvas.height); [[ex,'#315f9a',1],[em,'#b74352',rel]].forEach(([peak,col,scale])=>{ctx.strokeStyle=col;ctx.lineWidth=3;ctx.beginPath();for(let i=0;i<520;i++){const wl=250+i; const y=150*scale*Math.exp(-1*((wl-peak)/35)**2); const x=60+i*(canvas.width-110)/520, py=canvas.height-45-y; if(i===0)ctx.moveTo(x,py); else ctx.lineTo(x,py);}ctx.stroke();}); }
+function drawNernst(ctx,canvas,e0,n){ if(!ctx)return; drawAxes(ctx,canvas.width,canvas.height); ctx.strokeStyle='#087f8c'; ctx.lineWidth=3; ctx.beginPath(); for(let i=0;i<100;i++){const q=Math.pow(10,-3+i*6/99); const E=e0-(0.05916/Math.max(1,n))*Math.log10(q); const x=60+i*(canvas.width-120)/99, y=canvas.height-50-(E-(e0-.18))/.36*(canvas.height-95); if(i===0)ctx.moveTo(x,y); else ctx.lineTo(x,y);} ctx.stroke(); }
+
+function init(){setupTabs();renderChunks();renderChunkActivities();renderLectureMap();setupSlideStudio();renderPractice(); const btn=$('#runMainTool'); if(btn)btn.addEventListener('click',runTool); runTool(); openTab('chunk1');}
 document.addEventListener('DOMContentLoaded',init);
